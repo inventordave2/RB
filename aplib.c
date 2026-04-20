@@ -308,8 +308,6 @@ static int cmpap( AP A, AP B, AP C, FLAGS extra )   {
 }
 
 static uint64_t max( uint64_t a, uint64_t b );
-
-
 static uint64_t max( uint64_t a, uint64_t b ) {
     
     if( a >= b )
@@ -725,8 +723,6 @@ static void DIV( AP A, AP B, AP C, FLAGS extra ) {
 	char* Bwp = B->wholepart;
 	char* Cwp;
 
-
-
 	uint64_t strlen_B = lean_strlen(Bwp);
 	uint64_t strlen_A = lean_strlen(Awp);
 	uint64_t strlen_C = strlen_A * 2;
@@ -852,28 +848,28 @@ static void BXN( AP A, AP B, AP C, FLAGS extra ) {
 	APR1->wholepart = R1;
 	APR1->sign = '+';
 	APR2->wholepart = R2;
+	APR2->sign = '+';
 
 bxn_loop:
 
 	ADD( APR1,B,APR2,extra );
 
-	_ = R1;
-	R1 = R2;
-	R2 = _;
+	AP swap = (AP)malloc( sizeof( struct ap) );
+	*swap = *APR1;
+	*APR1 = *APR2;
+	*APR2 = *swap;
 
-
-	if( cmpdigitstr( R1, Awp )<1 )	{
+	if( cmpdigitstr( APR1->wholepart, Awp )<1 )	{
 
 		count = count + 1;
 		goto bxn_loop;
-
 	}
 
-	_ = R1;
-	R1 = R2;
-	R2 = _;
+	*swap = *APR1;
+	*APR1 = *APR2;
+	*APR2 = *swap;
 
-	ULL strlen_R1 = lean_strlen( R1 );
+	ULL strlen_R1 = lean_strlen( APR1->wholepart );
 
 	if( C==(AP)0 )   {
 
@@ -1137,14 +1133,15 @@ static void divby2( AP A, AP C, FLAGS extra ) {
 static unsigned char aplib_initialised = 0;
 void InitAPLIB()    {
 
-
 	if( aplib_initialised==0 )  {
 
 		aplib = (struct aplib_t*)calloc( 1, sizeof(struct aplib_t) );
 		aplib_initialised = 1;
-
-		
 	}
+	
+	AP1 = QuickAP( "1" );
+	AP0 = QuickAP( "0" );
+    AP2 = QuickAP( "2" );
 
 	aplib->get_opcode = get_opcode;
 
@@ -1202,3 +1199,4 @@ static void FreeAllConstants( ) {
 
 	return;
 }
+
