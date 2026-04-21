@@ -249,15 +249,18 @@ static void FreeAP( AP A )  {
 	if( A == (AP)0 )
 		return;
 
-	if( A->wholepart != (char*)0 )
+	if( A->wholepart != (char*)0 )  {
+
 		free( A->wholepart );
-
-	if( A->fractpart != (char*)0 )
+	}
+	
+	if( A->fractpart != (char*)0 )  {
+	    
 		free( A->fractpart );
+	}
 
-	A->wholepart = (char*)0;
-	A->fractpart = (char*)0;
-
+    free( A );
+    
 	return;
 }
 
@@ -285,7 +288,7 @@ static AP sqrt_deriv_f( AP A )	{
 static int cmpap( AP A, AP B, AP C, FLAGS extra )   {
 
 	int v = 0;
-	v = cmpdigitstr( A->wholepart, B->wholepart );
+	v = cmpdstr( A->wholepart, B->wholepart );
 
 	if( v>=0 )  {
 
@@ -297,7 +300,7 @@ static int cmpap( AP A, AP B, AP C, FLAGS extra )   {
 	}
 	else    {
 
-		v = cmpdigitstr( A->fractpart, B->fractpart );
+		v = cmpdstr( A->fractpart, B->fractpart );
 		if( v>=0 )
 			*C = *A;
 		else
@@ -624,10 +627,8 @@ SUBloop:
 	/**
 	END OF SUB BLOCK
 	*/
-	if( (*extra) & (OPDIV<<8) )
-		;
-	else
-		shift_left_leading_zeroes( Cwp );
+	
+	shift_left_leading_zeroes( Cwp );
 
 	return;
 }
@@ -729,29 +730,33 @@ static void DIV( AP A, AP B, AP C, FLAGS extra ) {
 
 	uint64_t strlen_REMAINDER = 0;
 
-	char* REMAINDER = (char*)malloc( strlen_C +1 );
-	char* RESULT = (char*)malloc( strlen_C+1 );
-	char* NEW_REMAINDER = (char*)malloc( strlen_C +1 );
-	char* _;
+	char* REMAINDER; 
+	char* RESULT;
+	char* NEW_REMAINDER;
+	AP _;
 	char ch = '0';
 
 	AP APREMAINDER = aplib->BlankAP();
+	APREMAINDER->wholepart = (char*)malloc( strlen_C +1 );
+	
 	AP APRESULT = aplib->BlankAP();
+	APRESULT->wholepart = (char*)malloc( strlen_C+1 );
+	
 	AP APNEWREMAINDER = aplib->BlankAP();
+    APNEWREMAINDER->wholepart = (char*)malloc( strlen_C +1 );
 
-	APREMAINDER->wholepart = REMAINDER;
-	APRESULT->wholepart = RESULT;
-	APNEWREMAINDER->wholepart = NEW_REMAINDER;
+	REMAINDER = APREMAINDER->wholepart;
+	RESULT = APRESULT->wholepart;
+	NEW_REMAINDER = APNEWREMAINDER->wholepart;
 
 	if( C==(AP)0 ) {
 
 		C = (AP)calloc( 1, sizeof(struct ap) );
 		C->wholepart = (char*)malloc( strlen_C+1 );
-
 	}
 
     if( C->wholepart == (char*)0 )  {
-        
+
         C->wholepart = (char*)malloc( strlen_C+1 );
     }
 
@@ -788,7 +793,7 @@ Loop:
 
 	SUB( APREMAINDER, APRESULT, APNEWREMAINDER, extra );
 
-	signed diff = cmpdstr( NEW_REMAINDER, "0" );
+	signed diff = cmpdstr( APNEWREMAINDER->wholepart, "0" );
 
 //#include <assert.h>
 	//  assert( diff>-1 );
@@ -799,28 +804,26 @@ Loop:
 
 	if( ((diff==0) && x>=strlen_A) || (x>=strlen_A*2) )  {
 
-		free( REMAINDER );
-		free( NEW_REMAINDER );
-		free( RESULT );
+		aplib->FreeAP( APREMAINDER );
+		aplib->FreeAP( APNEWREMAINDER );
+		aplib->FreeAP( APRESULT );
 
 		return;
 	}
 
-	_ = REMAINDER;
-	REMAINDER = NEW_REMAINDER;
-	NEW_REMAINDER = _;
-
-
+	_ = APREMAINDER;
+	APREMAINDER = APNEWREMAINDER;
+	APNEWREMAINDER = _;
+	
+    REMAINDER = APREMAINDER->wholepart;
+    
 	if( x >=strlen_A )
 		ch = '0';
 	else
 		ch = Awp[x];
 
-	if( strlen_REMAINDER == 0 )
-		strlen_REMAINDER = lean_strlen(REMAINDER);
-	else
-		++strlen_REMAINDER;
-
+	strlen_REMAINDER = lean_strlen(REMAINDER);
+	
 	REMAINDER[ strlen_REMAINDER ] = ch;
 	REMAINDER[ strlen_REMAINDER+1 ] = '\0';
 
@@ -850,42 +853,43 @@ static void BXN( AP A, AP B, AP C, FLAGS extra ) {
 	APR2->wholepart = R2;
 	APR2->sign = '+';
 
+    AP swap = (AP)malloc( sizeof( struct ap) );
+
 bxn_loop:
 
 	ADD( APR1,B,APR2,extra );
 
-	AP swap = (AP)malloc( sizeof( struct ap) );
-	*swap = *APR1;
-	*APR1 = *APR2;
-	*APR2 = *swap;
+	if( cmpdstr( APR2->wholepart, Awp )<1 )	{
 
-	if( cmpdigitstr( APR1->wholepart, Awp )<1 )	{
-
+	    *swap = *APR1;
+	    *APR1 = *APR2;
+	    *APR2 = *swap;
 		count = count + 1;
 		goto bxn_loop;
 	}
-
-	*swap = *APR1;
-	*APR1 = *APR2;
-	*APR2 = *swap;
-
+    
 	ULL strlen_R1 = lean_strlen( APR1->wholepart );
 
-	if( C==(AP)0 )   {
-
+	if( C==(AP)0 )
 		C = aplib->BlankAP();
-		C->wholepart = (char*)malloc( strlen_R1 + 1 );
-	}
+	
+	if( C->wholepart == (char*)0 )
+	    C->wholepart = (char*)malloc( strlen_R1 + 1 );
 
 	Cwp = C->wholepart;
-
-
+    shift_left_leading_zeroes( Cwp );
+    
 	*extra = *extra | (count&255);
-	strcpy( Cwp, R1 );
+	strcpy( Cwp, APR1->wholepart );
 	aplib->FreeAP( APR1 );
 	aplib->FreeAP( APR2 );
-
+    
+    // 'swap' has a duplicate heap reference, which would result in a free() error.
+    // Just release the AP allocation.
+    free( swap );
+    
 	return;
+
 }
 
 
