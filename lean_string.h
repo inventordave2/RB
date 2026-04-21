@@ -108,7 +108,7 @@ static signed int cmpdstr( char* lhs, char* rhs ) {
 
 	return 0;
 }
-static signed short int cmpdigitstr( char* dstr1, char* dstr2 );
+
 
 /* These 3 helper functions are for widestring buffer scanning. */
 static unsigned int base2_native_shift( unsigned int size );
@@ -124,7 +124,6 @@ static float lean_atof( char* f );
 /* Simple utility function for shifting off any leading-zero padding (ptr stays unchanged). */
 static void shift_left_leading_zeroes( char* A );
 
-
 /* ANSIVT16 COLOUR SUPPORT */
 #ifndef LEAN_COLOUR_H
 static char* colourlib_stub( char* str );
@@ -136,7 +135,6 @@ static char* (*colour_fmt)( char* ) = colourlib_stub;
 #else
 static char* (*colour_fmt)( char* ) = colour->fmt;
 #endif
-
 
 /**/
 /*
@@ -162,7 +160,6 @@ static void lean_substring( char* in, char* out, int start, int end )	{
 	return;
 }
 
-
 static void shift_left_leading_glyph( u_string str, glyph sym )    {
 
 	char* _ = (char*)str;
@@ -177,7 +174,7 @@ static void shift_left_leading_glyph( u_string str, glyph sym )    {
 
 		lean_substring( glyph_buf, _, x, sizeof(glyph) );
 
-		if( cmpdigitstr( glyph_buf, sym_buf )==0 )  {
+		if( cmpdstr( glyph_buf, sym_buf )==0 )  {
 
 			//shl (char*) str by sizeof(glyph)
 
@@ -327,68 +324,7 @@ static char* lean_ftoa( float a )    {
 
 	return r;
 }
-static signed short cmpdigitstr( char* dstr1, char* dstr2 )	{
 
-	unsigned long long int x = 0;
-	unsigned long long int y = 0;
-	short int flag = 0;
-
-	char d1 = 0;
-	char d2 = 0;
-
-	while( 1 )	{
-
-		d1 = dstr1[x];
-		if( d1=='0' )
-			x++;
-		else
-			break;
-	}
-
-	while( 1 ) 	{
-
-		d2 = dstr2[y];
-		if( d2=='0' )
-			y++;
-		else
-			break;
-	}
-
-loop:
-
-	if( d1 != d2 )	{
-
-		// if a) one string is shorter than the other, then that is the smaller digitstring in scalar value.
-		// else, the number with the earliest (from highest-order digit, nearest the beginning of the dstring ) bigger number is the
-		// bigger scalar value.
-
-		if( d1==0 )
-			return -1;
-
-		if( d2==0 )
-			return +1;
-
-		if( flag==0 )
-			(d1>d2)?(flag=1):(flag=2);
-	}
-
-	if( d1 != 0 )	{
-
-		x++;
-		y++;
-
-		d1 = dstr1[x];
-		d2 = dstr2[y];
-		goto loop;
-	}
-
-	if( flag==2 )
-		return -1;
-	if( flag==1 )
-		return +1;
-
-	return 0;
-}
 static char* lean_clipstring( char* str1, unsigned long long len ) {
 
 	if( str1 == (char*)0 )
