@@ -1,4 +1,6 @@
-/**/
+/* "DAVE'S APLIB. Arbitrary-Precision mathematical tools, from Arithmetic to Trig functions \
+(such as SINE and COS), working with PI, LOGARITHMS & ROOTS etc. Facilities for working within \
+IEEE754 mode, and arbitrary-Precision emulation of IEEE754 floats and doubles." */
 
 // C STDLIB INC'S
 #include <stdlib.h>
@@ -8,12 +10,14 @@
 #include <stdio.h>
 #include <time.h>
 
-//#include "lean_math.h"
 #include "./lean_string.h"
 #include "./aplib.h"
 
 #define APNUM AP
 #define ULL unsigned long long int
+
+struct aplib_t* aplib;
+struct Planck* planck;
 
 /**
 TABLE FOR OPTIMISING THE ARITHMETIC ALGORITHMS' REQUIREMENT TO DETERMINE A RESULT DIGIT AND A CARRYOVER DIGIT.
@@ -35,7 +39,7 @@ to an animation subroutine for visual rendering of the operation (subject to a p
 the sequence of interim operations can be seen happening sequentiallyn, any animation rendering the operation would need to slow the
 frame-rate down for the sequence of steps to be visible to the viewer). Being in ASCII format without additional shifting & masking is kinda clean.
 */
-signed char __VALUES__[ (89+19)*2 + 2 ] = {
+static signed char __VALUES__[ (89+19)*2 + 2 ] = {
 
 	'1', '9', '1', '8', '1', '7', '1', '6', '1', '5', '1', '4', '1', '3', '1', '2', '1', '1', '1', '0',
 	'0', '9', '0', '8', '0', '7', '0', '6', '0', '5', '0', '4', '0', '3', '0', '2', '0', '1',
@@ -55,7 +59,7 @@ This sets the pointer to the Lookup Table to the middle, as the first half of th
 For example 4 - 5 == -1. Typically, negative lookup results are in the range ( -19 <= r <= -1 ), as SUB is the only signed Operation.
 Other operations have a simple method for establishing the sign without dynamic production.
 */
-signed char* VALUES = __VALUES__+(19*2);
+static signed char* VALUES = __VALUES__+(19*2);
 
 /**
 Static descriptors for indexing the available public Operators.
@@ -63,11 +67,11 @@ The associated function "get_opcode" takes a string for the Op name (e.g. "add" 
 and returns the descriptor for passing to the main APLIB switch-case block.
 */
 
-#define FNC_ENTRY_SIG AP A, AP B, AP C, FLAGS extra
-#define apfnc_t (AP)(*opfnc)( AP A, AP B, AP C, FLAGS extra )
+#define FNC_ENTRY_SIG AP A, AP B, AP C, Flags extra
+#define apfnc_t (AP)(*opfnc)( AP A, AP B, AP C, Flags extra )
 #define Result result_t
 
-const char* PI_math_h = "3.14159265358979323846264338327950288419716939937510582097494459230781640628620899862803482534211706798214808651328230664709384460955058223172535940812848111745028410270193852110555964462294895493038196442881097566593344612847564823378678316527120190914564856692346034861045432664821339360726024914127372458700660631558817488152092096282925409171536436789259036001133053054882046652138414695194151160943305727036575959195309218611738193261179310511854807446237996274956735188575272489122793818301194912";
+static const char* PI_math_h = "3.14159265358979323846264338327950288419716939937510582097494459230781640628620899862803482534211706798214808651328230664709384460955058223172535940812848111745028410270193852110555964462294895493038196442881097566593344612847564823378678316527120190914564856692346034861045432664821339360726024914127372458700660631558817488152092096282925409171536436789259036001133053054882046652138414695194151160943305727036575959195309218611738193261179310511854807446237996274956735188575272489122793818301194912";
 
 static const char* Lp = "0.000000000000000000000000000000000001616255"; //( units => metres )
 static const char* tp = "0.0000000000000000000000000000000000000000000539127"; //( units => secs )
@@ -76,8 +80,6 @@ static const char* G  = "0.000000000066743015"; //( units => m_cubed * 1/kg * 1/
 static const char* Tp = "0.00000000000000000000000000000001416784"; //( units => Kelvin )
 
 
-struct aplib_t* aplib;
-struct Planck* planck;
 static int planck_struct_initialised = 0;
 struct Planck* init_planck()    {
 
@@ -91,9 +93,42 @@ struct Planck* init_planck()    {
     planck->Mass = aplib->QuickAP( (char*)Mp );
 	planck_struct_initialised = 1;
 	return planck;
-
 }
 
+aplib_operator ops[ 256 ];
+aplib_operator operator;
+aplib_operator getaplib_operator( int x );
+aplib_operator getaplib_operator( int x )  {
+    
+    operator = ops[ x ];
+    return operator;
+}
+
+static void CleanUpResult( AP A )  {
+    
+    if( A==(AP)0 )  {
+        
+        AP* C = &A;
+        *C = aplib->BlankAP();
+    }
+    
+    if( A->wholepart==(char*)0 )
+        A->wholepart = strdup( "0" );
+        
+    if( A->fractpart==(char*)0 )
+        A->fractpart = strdup( "0" );
+        
+    if( A->sign != '-' && A->sign != '+' )
+        A->sign = '+';
+        
+    if( A->base == 0 )
+        A->base = 10;
+        
+    if( A->desc == (char*)0 )   {
+        
+        A->desc = strdup( "AP number." );
+    }
+}
 
 AP e; // Euler's Constant.
 AP GR; // The "Golden Ratio".
@@ -128,14 +163,14 @@ static AP BlankAP();
 
 static void FreeAllConstants();
 static char* shift_ptr_past_leading_zeroes( char* );
-static signed char get_opcode( char* op );
+static int get_opcode( char* op );
 
 /* IEEE-754 (Native) Operator function signatures.
 */
 static int EQ( double A, double B, double epsilon );
-static Result benchmark(  AP(*f)( AP A, AP B, AP C, FLAGS extra ), AP A, AP B, AP C, FLAGS extra );
+static Result benchmark(  AP(*f)( AP A, AP B, AP C, Flags extra ), AP A, AP B, AP C, Flags extra );
 
-static Result benchmark(  AP(*f)(AP A, AP B, AP C, FLAGS extra), AP A, AP B, AP C, FLAGS extra ) {
+static Result benchmark(  AP(*f)(AP A, AP B, AP C, Flags extra), AP A, AP B, AP C, Flags extra ) {
 
 	Result result;
 
@@ -232,17 +267,17 @@ static char* RandAPNumString( uint64_t maxlen )	{
 	return _;
 }
 
-/* APLIB (Arbitrary-precision) Operator function signatures. These operators are complete for arbitrary length Integers (no fractpart).
+/* APLIB (Arbitrary-Precision) Operator function signatures. These operators are complete for arbitrary length Integers (no fractpart).
 */
-static void ADD( AP A, AP B, AP C, FLAGS extra );
-static void SUB( AP A, AP B, AP C, FLAGS extra );
-static void MUL( AP A, AP B, AP C, FLAGS extra );
+static void ADD( AP A, AP B, AP C, Flags extra );
+static void SUB( AP A, AP B, AP C, Flags extra );
+static void MUL( AP A, AP B, AP C, Flags extra );
 
 // From below, the implementations for the operators are even more incomplete. Still testing iteratively.
-static void DIV( AP A, AP B, AP C, FLAGS extra );
-static void BXN( AP A, AP B, AP C, FLAGS extra );
+static void DIV( AP A, AP B, AP C, Flags extra );
+static void BXN( AP A, AP B, AP C, Flags extra );
 
-static void Root( AP A, AP B, AP C, FLAGS extra );
+static void Root( AP A, AP B, AP C, Flags extra );
 
 static void FreeAP( AP A )  {
 
@@ -285,7 +320,7 @@ static AP sqrt_deriv_f( AP A )	{
 	return R;
 }
 
-static int cmpap( AP A, AP B, AP C, FLAGS extra )   {
+static int cmpap( AP A, AP B, AP C, Flags extra )   {
 
 	int v = 0;
 	v = cmpdstr( A->wholepart, B->wholepart );
@@ -318,29 +353,29 @@ static uint64_t max( uint64_t a, uint64_t b ) {
     
     return b;
 }
-static void Root( AP A, AP B, AP C, FLAGS extra )	{
+static void Root( AP A, AP B, AP C, Flags extra )	{
 
-	AP x0;
-	NULLAP(x0);
+	AP x0 = BlankAP();
+	
 	DIV( A,AP2, x0, extra );
 
 	AP epsilon = aplib->QuickAP( "0.0000000001" );
 	AP tolerance = aplib->QuickAP( "0.000001" );
 
-	uint64_t max_iterations = 20;
+	uint32_t max_iterations = 20;
 
-	AP y;
-	AP yprime;
-	AP x1;
-	AP x1_b;
-	AP x1_c;
-
+	AP y  = aplib->BlankAP();
+	AP yprime = aplib->BlankAP();
+	AP x1 = aplib->BlankAP();
+	AP x1_b = aplib->BlankAP();
+	AP x1_c = aplib->BlankAP();
+    AP R  = aplib->BlankAP();
+    
 	while( max_iterations-- )	{
 
 		y = sqrt_f( x0 );
 		yprime = sqrt_deriv_f( x0 );
-		AP R;
-		R = aplib->BlankAP();
+
 		if( aplib->cmpap( yprime, epsilon, R, (int*)0 ) < 0 )
 			break;
 
@@ -389,7 +424,7 @@ static char* shift_ptr_past_leading_zeroes( char* _ )	{
 	return _;
 }
 
-static signed char get_opcode( char* op )	{
+static int get_opcode( char* op )	{
 
 	if( lean_strcmp( op,"mul" ) )
 		return OPMUL;
@@ -415,7 +450,7 @@ static signed char get_opcode( char* op )	{
 	return -1;
 }
 
-static void ADD( AP A, AP B, AP C, FLAGS extra ) {
+static void ADD( AP A, AP B, AP C, Flags extra ) {
 
 	char* Awp = A->wholepart;
 	char* Bwp = B->wholepart;
@@ -506,7 +541,7 @@ ADDloop:
 
 	return;
 }
-static void SUB( AP A, AP B, AP C, FLAGS extra ) {
+static void SUB( AP A, AP B, AP C, Flags extra ) {
 
 	char* Awp = A->wholepart;
 	char* Bwp = B->wholepart;
@@ -635,11 +670,11 @@ SUBloop:
 
 #define INITAP(A) AP A = (AP)calloc(sizeof(struct ap)) 
 
-#define CHECKAP(A,lenwp,lenfp) if( A==(AP)0 ) A = BlankAP();\
+#define CHECKAP(A,lenwp,lenfp) if( A==(AP)0 ) *A = *BlankAP();\
 if( A->wholepart==(char*)0 ) A->wholepart = (char*)calloc( lenwp+1, sizeof(char) );\
 if( A->fractpart==(char*)0 ) A->fractpart = (char*)calloc( lenfp+1, sizeof(char) ); 
 
-static void MUL( AP A, AP B, AP C, FLAGS extra ) {
+static void MUL( AP A, AP B, AP C, Flags extra ) {
 
 	register char* Awp = A->wholepart;
 	register char* Bwp = B->wholepart;
@@ -650,7 +685,8 @@ static void MUL( AP A, AP B, AP C, FLAGS extra ) {
 	int64_t maxlenAB = max( lenA, lenB );
 	register int64_t lenC = lenA+lenB;
 
-    CHECKAP(C,lenC,0);
+    if( C->wholepart == (char*)0 )
+        C->wholepart = (char*)malloc( lenC+1 );
 
     Cwp = C->wholepart;
     Cwp[ lenC ] = '\0';
@@ -707,8 +743,6 @@ static void MUL( AP A, AP B, AP C, FLAGS extra ) {
 		}
 	}
 	
-	Cwp[ 0 ] = carry;
-	
     while( lenC ) {
         
         Cwp[ tz-- ] |= 48;
@@ -718,7 +752,7 @@ static void MUL( AP A, AP B, AP C, FLAGS extra ) {
 	return;
 }
 
-static void DIV( AP A, AP B, AP C, FLAGS extra ) {
+static void DIV( AP A, AP B, AP C, Flags extra ) {
 
 	char* Awp = A->wholepart;
 	char* Bwp = B->wholepart;
@@ -726,7 +760,7 @@ static void DIV( AP A, AP B, AP C, FLAGS extra ) {
 
 	uint64_t strlen_B = lean_strlen(Bwp);
 	uint64_t strlen_A = lean_strlen(Awp);
-	uint64_t strlen_C = strlen_A * 2;
+	uint64_t strlen_C = strlen_A + 50;
 
 	uint64_t strlen_REMAINDER = 0;
 
@@ -802,7 +836,7 @@ Loop:
 	Cwp[x+1] = '\0';
 	++x;
 
-	if( ((diff==0) && x>=strlen_A) || (x>=strlen_A*2) )  {
+	if( ((diff==0) && x>=strlen_A) || (x>=strlen_C) )  {
 
 		aplib->FreeAP( APREMAINDER );
 		aplib->FreeAP( APNEWREMAINDER );
@@ -830,7 +864,7 @@ Loop:
 	goto Loop;
 }
 
-static void BXN( AP A, AP B, AP C, FLAGS extra ) {
+static void BXN( AP A, AP B, AP C, Flags extra ) {
 
 	char* Awp = A->wholepart;
 	char* Bwp = B->wholepart;
@@ -895,18 +929,24 @@ bxn_loop:
 
 #ifndef EXPECT_STDLIB
 /* nostdlib malloc( n ) */
-void* (*malloc_fnc)( unsigned int size );
-static void* (*aplib_malloc)( unsigned int size );
-void* register_heap_allocator( void*(*f)(unsigned int) )   {
+void* (*malloc_fnc)( int size );
+static void* (*aplib_malloc)( int size );
+void* register_heap_allocator( void*(*f)(int) )   {
 
 	aplib_malloc = f;
 	return (void*) aplib_malloc;
 }
 
+/*
+
+
+*/
+
+
 /* nostdlib calloc( n,s ) */
-void* (*calloc_fnc)( unsigned int numentries, unsigned int size );
-static void* (*aplib_calloc)( unsigned int numentries, unsigned int size );
-void* register_heap_callocator( void*(*f)(unsigned int numentries, unsigned int size) )  {
+void* (*calloc_fnc)( int numentries, int size );
+static void* (*aplib_calloc)( int numentries, int size );
+void* register_heap_callocator( void*(*f)( int numentries, int size ) )  {
 
 	aplib_calloc = f;
 	return (void*) aplib_calloc;
@@ -996,9 +1036,9 @@ AP SimpleAP( char* val )	{
 }
 
 
-static AP CopyAP( AP A, FLAGS extra );
+static AP CopyAP( AP A, Flags extra );
 
-static AP CopyAP( AP A, FLAGS extra )   {
+static AP CopyAP( AP A, Flags extra )   {
 
 	AP _ = (AP)malloc( sizeof(struct ap) );
 
@@ -1007,11 +1047,11 @@ static AP CopyAP( AP A, FLAGS extra )   {
 	return _;
 }
 
-static void LOGb( AP A, AP B, AP C, FLAGS extra );
+static void LOGb( AP A, AP B, AP C, Flags extra );
 
 static AP APNUMERATOR;
 static AP APDENOMINATOR;
-static void LOGb( AP A, AP B, AP C, FLAGS extra )	{
+static void LOGb( AP A, AP B, AP C, Flags extra )	{
 
 	AP root = B;
 
@@ -1093,8 +1133,8 @@ static void LOGb( AP A, AP B, AP C, FLAGS extra )	{
 	aplib->divide( APNUMERATOR, APDENOMINATOR, C, extra );
 }
 
-static void floor_ap( AP A, AP C, FLAGS extra );
-static void floor_ap( AP A, AP C, FLAGS extra )   {
+static void floor_ap( AP A, AP C, Flags extra );
+static void floor_ap( AP A, AP C, Flags extra )   {
 
 
 	AP* C_ref = (AP*)&C;
@@ -1109,9 +1149,9 @@ static void floor_ap( AP A, AP C, FLAGS extra )   {
 	C->precision = 0;
 }
 
-static char* default_desc = "AP Arbitrary-precision number.";
+static char* default_desc = "AP Arbitrary-Precision number.";
 
-static AP NewAP( char* wp, char* fractpart, char* sign, int* base, signed long long int precision ) {
+static AP NewAP( char* wp, char* fractpart, char* sign, int* base, Precision precision ) {
 
 	AP a = (AP) malloc( sizeof(struct ap) );
     a->desc = default_desc;
@@ -1130,7 +1170,7 @@ static AP NewAP( char* wp, char* fractpart, char* sign, int* base, signed long l
 
 	return a;
 };
-static void divby2( AP A, AP C, FLAGS extra ) {
+static void divby2( AP A, AP C, Flags extra ) {
 
 	DIV( A, AP2, C, extra );
 }
@@ -1167,6 +1207,13 @@ void InitAPLIB()    {
 	aplib->logb = LOGb;
 	aplib->root = Root;
 	aplib->divby2 = divby2;
+
+    ops[ OPADD ] = aplib->add;
+    ops[ OPSUB ] = aplib->sub;
+    ops[ OPMUL ] = aplib->mul;
+    ops[ OPDIV ] = aplib->divide;
+    ops[ OPLOG ] = aplib->logb;
+    ops[ OPSQROOT ] = aplib->root;
 
     init_planck();
 	aplib_initialised = 1;
