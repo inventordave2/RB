@@ -3,7 +3,7 @@
 all: aplib app_front
 
 aplib: ./aplib.c ./aplib.h ./aplib_extra_typedefs.h ./lean_string.h 
-    gcc -O0 -g -DDEBUG -c -o ./aplib.o ./aplib.c
+    gcc -O0 -g -DDEBUG -DEXPECT_STDLIB -c -o ./aplib.o ./aplib.c
     
 app_front: ./main.c ./lean_string.h
     gcc -O0 -g -DDEBUG -o ./app.exe ./aplib.o ./main.c 
