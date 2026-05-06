@@ -28,132 +28,66 @@ int main( int argc, char** argv )   {
 
 	int base = 10;
 	AP A = aplib->NewAP( arg2, strdup("0"), "+", &base, 128 );
-	AP B = aplib->NewAP( arg3,  strdup("0"), "+", &base, 128 );
-	AP C = (AP)0;
-	FLAGS extra = (FLAGS) calloc( 1, sizeof(int) );
+	AP B = aplib->NewAP( arg3, strdup("0"), "+", &base, 128 );
+	AP C = aplib->BlankAP();
+	Flags extra = (Flags) calloc( 1, sizeof(int) );
 
 	char opcode = aplib->get_opcode( arg1 );
-	unsigned char emit_result = 1;
+	int emit_result = 1;
 
-	// OPERATOR SWITCH-BLOCK
-	switch( opcode )	{
-
-    	case -1:
-    		printf( "Opcode not recognized. You entered '%s'. Exiting.\n", argv[1] );
-    		emit_result = 0;
+    operator = ops[ opcode ];
     
-    		break;
+    operator( A, B, C, extra );
     
-    
-    	case 0:
-    		printf( "Opcode not yet implemented. Exiting.\n" );
-    		emit_result = 0;
-    
-    		break;
-
-    
-    	case OPADD:
-    	    C = (AP)calloc( 1,sizeof(struct ap) );
-    		aplib->add( A, B, C, extra );
-    
-    		break;
-    
-    
-    	case OPSUB:
-            C = aplib->BlankAP();
-    		aplib->sub( A, B, C, extra );
-    
-    		break;
-
-    
-    	case OPMUL:
-    	    C = (AP)calloc( 1,sizeof(struct ap) );
-    		aplib->mul( A,B,C,extra );
-    
-    		break;
-    
-    	case OPDIV:
-            C = aplib->BlankAP();
-    		aplib->divide( A,B,C, extra );
-    		emit_result = 1;
-    
-    		uint64_t strlen_A = lean_strlen(A->wholepart);
-    		uint64_t strlen_C = lean_strlen(C->wholepart);
-    
-    		if( strlen_C > strlen_A )   {
-    
-    			AP D = (AP)malloc( sizeof(struct ap) );
-    			D->wholepart = (char*)malloc( strlen_C+2+1 +1 );
-    			D->fractpart = (char*)malloc( strlen_C+2+1 +1 );
-    
-    			char t = C->wholepart[ strlen_A ];
-    			C->wholepart[ strlen_A ] = '\0';
-    			lean_strcpy( D->wholepart, C->wholepart );
-    
-    			C->wholepart[ strlen_A ] = t;
-    
-    			lean_strcpy( D->fractpart, C->wholepart+strlen_A );
-    
-    			aplib->FreeAP( C );
-    			C = D;
-    		}
-    
-    		break;
-    
-    	case OPBXN:
-    		if( cmpdstr( A->wholepart,B->wholepart )<0 )	{
-    
-    			fprintf( stdout, "A is smaller than B. Swap? (y/n) :" );
-    			fflush( stdout );
-    			char ch = getc( stdin );
-    			if( !(ch=='y' || ch==' ') )	{
-    
-    				fflush( stdout );
-    				printf( "Exiting.\n" );
-    
-    				//C = (AP)calloc( 1,1 );
-    				C = aplib->QuickAP( "" );
-    
-    				emit_result = 0;
-    				break;
-    			}
-    
-    			AP _;
-    			_ = A;
-    			A = B;
-    			B = _;
-    		}
-        
-        		C = (AP)0;
-        		aplib->bxn( A, B, C, extra );
-    
-    		AP REMAINDER = aplib->QuickAP( "" ); // = (AP)calloc( strlen(A)+1, sizeof(char) );
-    		free( REMAINDER->wholepart );
-    		REMAINDER->wholepart = (char*)malloc( lean_strlen(A->wholepart + 1) );
-    
-    		aplib->sub( A,C,REMAINDER,extra );
-    
-    		printf( "BxN specfic: REMAINDER ( A %% B ) == '%s'.\n", aplib->PrintAP(REMAINDER) );
-    		aplib->FreeAP( REMAINDER );
-    
-    		break;
-
-
-    	default:
-    		//C = (AP)calloc( 2,sizeof(char) );
-    		*C = *AP0;
-    		emit_result = 0;
-    		break;
-	}
-
-
+    printf( "Result Calculated.\n" );
+ 
 	// EMIT OPERATION RESULT.
 	if( emit_result )	{
 
 		shift_left_leading_zeroes( C->wholepart );
 		shift_left_leading_zeroes( C->fractpart );
-		printf( "Result of '%s' '%s' '%s' == '%s'.\n", \
-		A->wholepart, arg1, B->wholepart, C->wholepart );
+		
+		char* A_WP;
+		char* A_FP;
+		char* B_WP;
+		char* B_FP;
+
+        char* Z	= "0";	
+		char* C_WP;
+		char* C_FP; 
+		
+		if( cmpdstr(A->wholepart, "0")>0 )
+		    A_WP = A->wholepart;
+		else
+		    A_WP = Z;
+
+        if( cmpdstr(A->fractpart, "0")>0 )
+            A_FP = A->fractpart;
+        else
+            A_FP = Z;
+            
+        if( cmpdstr(B->wholepart, "0")>0 )
+            B_WP = B->wholepart;
+        else
+            B_WP = Z;
+            
+        if( cmpdstr(B->fractpart, "0")>0 )
+            B_FP = B->wholepart;
+        else
+            B_FP = Z;
+        
+		if( cmpdstr(C->wholepart, "0")>0 )
+		    C_WP = C->wholepart;
+		else
+		    C_WP = Z;
+		    
+		if( cmpdstr(C->fractpart, "0")>0 )
+		    C_FP = C->fractpart;
+		else
+		    C_FP = Z;
+		
+		printf( "Result of '%s.%s' '%s' '%s.%s' = '%s.%s'.\n", \
+		A_WP, A_FP, arg1, B_WP, B_FP, C_WP, C_FP );
 
 	}
 
@@ -162,6 +96,8 @@ int main( int argc, char** argv )   {
 	aplib->FreeAP( B );
 	aplib->FreeAP( C );
 
+    DeInitAPLIB();
+    
 	free( arg1 );
 	free( arg2 );
 	free( arg3 );
