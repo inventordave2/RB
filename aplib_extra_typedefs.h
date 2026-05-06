@@ -24,6 +24,36 @@ extern AP AP2_7;
 extern AP AP22_7;
 extern AP PI;
 
+
+typedef struct Planck   {
+
+	AP Time;
+	AP Length;
+	AP Mass;
+	AP Energy;
+
+	AP Constant;
+	AP ReducedConstant;
+
+} Planck;
+extern struct Planck* planck;
+typedef struct aplib_rational_t {
+
+	int n;
+	int m;
+
+} aplib_rational_t;
+#define rational_t aplib_rational_t
+
+typedef struct aplib_result_t {
+
+	double r;
+	struct aplib_rational_t n_m;
+
+} aplib_result_t;
+#define result_t aplib_result_t
+
+
 /**
 struct vector_t (*vec)( struct extern AP t, struct AP x, struct AP y, struct AP z, struct AP k );
 struct point_t (*point)( struct AP t, struct AP x, struct AP y, struct AP z, struct AP k );
