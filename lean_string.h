@@ -30,6 +30,12 @@ static unsigned long long int lean_strlen( char* );
 static signed int cmpdstr( char* lhs, char* rhs );
 static signed int cmpdstr( char* lhs, char* rhs ) {
 
+    if( lhs==(char*)0 )
+        lhs = "0";
+        
+    if( rhs==(char*)0 )
+        rhs = "0";
+
 	char lhs_sign = '+';
 	char rhs_sign = '+';
 
@@ -66,24 +72,17 @@ static signed int cmpdstr( char* lhs, char* rhs ) {
 	while( *rhs_end != '\0' )
 		++rhs_end;
 
-	unsigned long long int lhs_len = lhs_end - lhs;
-	unsigned long long int rhs_len = rhs_end - rhs;
-	unsigned long long int len = lhs_len - rhs_len;
-
-	signed int cmp;
+	unsigned int lhs_len = lhs_end - lhs;
+	unsigned int rhs_len = rhs_end - rhs;
+	signed int len = (signed int) lhs_len - rhs_len;
 
 	// Different lengths: longer wins (or loses if negative)
 	if( len != 0 ) {
 
 		if( len>0 )
-			cmp = +1;
-		else
-			cmp = -1;
+			return +1;
 
-		if(lhs_sign == '+')
-			return cmp;
-
-		return -cmp;
+		return -1;
 	}
 
 	// Same length: character-by-character comparison
@@ -92,14 +91,10 @@ static signed int cmpdstr( char* lhs, char* rhs ) {
 		if( *lhs != *rhs ) {
 
 			if( *lhs > *rhs )
-				cmp = +1;
+				return +1;
 			else
-				cmp = -1;
+				return -1;
 
-			if(lhs_sign == '+')
-				return cmp;
-
-			return -cmp;
 		}
 
 		++lhs;
