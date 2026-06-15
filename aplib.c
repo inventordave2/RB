@@ -300,7 +300,9 @@ static void FreeAP( AP A )  {
 }
 
 /*
-The Newton's Method root approximation functions. Only 'ap sqroot(ap)' is exposed via the aplib_t interface. The others are used by the algorithm internally (by the core 'sqroot' function), they are implementation details that do not need to be directly-accessed by the User.
+The Newton's Method root approximation functions. Only 'ap sqroot(ap)' is exposed via the aplib_t interface.
+The others are used by the algorithm internally (by the core 'sqroot' function), they are implementation details that
+do not need to be directly-accessed by the User.
 */
 static AP sqrt_f( AP A )	{
 
@@ -752,6 +754,16 @@ static void MUL( AP A, AP B, AP C, Flags extra ) {
 	return;
 }
 
+/*
+
+char* Afp = A->fractpart
+char* Bfp = B->fractpart
+
+
+*/
+
+
+
 static void DIV( AP A, AP B, AP C, Flags extra ) {
 
 	char* Awp = A->wholepart;
@@ -842,6 +854,17 @@ Loop:
 		aplib->FreeAP( APNEWREMAINDER );
 		aplib->FreeAP( APRESULT );
 
+
+        /*
+        The fixed-point decimal has it's position for result string C at the same position it is for input A.
+        Ergo, offset_fp = strlen(Awp). When this function returns, the main() function shifts the string so
+        as to eliminate leading 0's, but as this iteration of the function only thinks of Integer strings,
+        a shimmy is needed. Or, I could update my functions. 
+        
+        
+        */
+		
+		
 		return;
 	}
 
