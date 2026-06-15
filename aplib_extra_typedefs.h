@@ -69,7 +69,7 @@ typedef struct angle_t	{
 	AP v;
 	int type; // radians or degrees, etc
 
-	uint16_t clockwise;
+	int clockwise;
 
 } angle_t;
 typedef struct vector_t	{
@@ -80,7 +80,7 @@ typedef struct vector_t	{
 	AP z;
 	AP k;
 
-	uint16_t type;
+	int type;
 
 } vector_t;
 #define Angle struct angle_t
@@ -92,7 +92,7 @@ typedef struct circle_t	{
 	Vector* origin;
 	AP segments;
 
-	uint16_t type;
+	int type;
 } circle_t;
 typedef struct triangle_t {
 
@@ -104,7 +104,7 @@ typedef struct triangle_t {
 	Angle* hyp_opp_angle;
 	Angle* opp_adj_angle;
 
-	uint16_t type; // isoscoles, equilateral, rightangle
+	int type; // isoscoles, equilateral, rightangle
 } triangle_t;
 #define Circle struct circle_t
 #define Triangle struct triangle_t
