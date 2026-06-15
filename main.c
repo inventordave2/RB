@@ -1,10 +1,72 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
+
 #include "./lean_string.h"
 #include "./aplib.h"
+#include "./log_native.h"
+#include "./ieee754.h"
 
 int main( int argc, char** argv )   {
+
+    if( !strcmp( argv[1], "newtons_root") )  {
+        
+        char* input = "100.0";
+        
+        if( argc>2 )
+            input = argv[2];
+            
+        double x = (double)atof( input );
+        
+        double result = Root_NewtonsMethod( x );
+        double stdlib_result = sqrt( x );
+        
+        printf( "stdlib sqrt(%f) = %.10f\nMy method sqrt(%f) = %.10f\n", x, stdlib_result, x, result );
+        
+        exit(0);
+    }
+    
+    
+    if( !strcmp( argv[1], "stringify_float" ) )    {
+        
+        // char* IEEE_readDouble( double f )
+        char* input = "65535.0";
+        
+        if( argc>2 )
+            input = argv[2];
+            
+        float x = (float)atof( input );
+
+        char* result = IEEE_readFloat( x );
+        
+        printf( "Inputted '%f10'. Binary string is '%s'\n", x, result );
+        
+        float y = 0.0;
+        
+        //void IEEE_writeDouble(double* dest, char* str)
+        IEEE_writeFloat( &y, result );
+
+        printf( "writing back to float silo indicates value %f .\n", y );
+        
+        
+        return 0;
+    }
+
+    if( !strcmp(argv[1], "native_log") )    {
+        
+        char* input = "5.0";
+        if( argc>2 )
+            input = argv[2];
+            
+        double A = (double) atof( input );
+        
+        test_log_native_impl( A );
+
+        return 0;
+
+    }
+
 
 	InitAPLIB();
 
