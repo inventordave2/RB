@@ -5,11 +5,23 @@
 
 #include "./lean_string.h"
 #include "./aplib.h"
-#include "./log_native.h"
+#include "./native.h"
 #include "./ieee754.h"
 
 int main( int argc, char** argv )   {
 
+    if( !strcmp( argv[1], "cosine" ) )    {
+        
+        double a = 1.0;
+        
+        if( argc > 2 )
+            a = atof( argv[2] );
+        
+        printf( "My implementation calculates cosine(%.20f) = %.20f.\n\
+        The cstdlib version calculates %.20f.\n", a, quick_cosine(a), cos(a) );
+        
+        exit(0);
+    }
     if( !strcmp( argv[1], "newtons_root") )  {
         
         char* input = "100.0";
@@ -19,11 +31,23 @@ int main( int argc, char** argv )   {
             
         double x = (double)atof( input );
         
+        SPEEDTESTINIT();
+        
+        double custom_method = 0.0;
+        double stdlib_method = 0.0;
+
+        SPEEDTESTBEGIN();
         double result = Root_NewtonsMethod( x );
+        SPEEDTESTEND();
+        custom_method = (double) (end - begin) / CLOCKS_PER_SEC;
+        
+        SPEEDTESTBEGIN();
         double stdlib_result = sqrt( x );
+        SPEEDTESTEND();
+        stdlib_method = (double) (end - begin) / CLOCKS_PER_SEC;
         
         printf( "stdlib sqrt(%f) = %.10f\nMy method sqrt(%f) = %.10f\n", x, stdlib_result, x, result );
-        
+        printf( "stdlib version took: %f\nmy custom method took: %f\n", stdlib_method, custom_method );
         exit(0);
     }
     
