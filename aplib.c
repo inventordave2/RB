@@ -347,6 +347,42 @@ static int cmpap( AP A, AP B, AP C, Flags extra )   {
 	return v;
 }
 
+static inline AP MAX( AP A, AP B );
+static inline AP MAX( AP A, AP B )    {
+
+    uint64_t x = 0;
+    char z = (char)0;
+
+    while( (z = A->wholepart[ x ]) )  {
+        
+        if( z > B->wholepart[ x ] ) {
+        
+            return A;
+        }    
+        if( z < B->wholepart[ x ] ) {
+            
+            return B;
+        }
+        
+        ++x;
+    }
+    
+    x = 0;
+    
+    while( (z = A->fractpart[ x ]) )    {
+        
+        if( z > B->fractpart[ x ] )
+            return A;
+            
+        if( z < B->fractpart[ x ] )
+            return B;
+            
+        ++x;
+    }
+    
+    return A;
+}
+
 static uint64_t max( uint64_t a, uint64_t b );
 static uint64_t max( uint64_t a, uint64_t b ) {
     
@@ -452,25 +488,117 @@ static int get_opcode( char* op )	{
 	return -1;
 }
 
+
+typedef struct strlen_x {
+    
+    uint64_t wp;
+    uint64_t fp;
+
+} strlen_x;
+
+typedef struct AB_prescan   {
+    
+    AP max;
+    struct strlen_x strlen_a;
+    struct strlen_x strlen_b;
+
+} AB_prescan;
+
+static struct AB_prescan lean_strlen_and_max( AP A, AP B ) ;
+
+
+#define INIT_ABPRESCAN(X) X.max = (AP)0; X.strlen_b.wp = 0; X.strlen_b.fp = 0; X.strlen_a.wp = 0; X.strlen_a.fp = 0;
+static struct AB_prescan lean_strlen_and_max( AP A, AP B )    {
+    
+    struct AB_prescan ab;
+    INIT_ABPRESCAN(ab);
+    ab.max = A;
+    
+    uint64_t x = 0;
+    char z = (char)0;
+
+    while( (z = A->wholepart[ x ]) )  {
+        
+        if( z > B->wholepart[ x ] ) {
+        
+            if( B->wholepart[ x ]=='\0' )
+                ab.strlen_b.wp = x;
+        }    
+        if( z < B->wholepart[ x ] ) {
+            
+            ab.max = B;
+        }
+        
+        ++x;
+    }
+    
+    ab.strlen_a.wp = x;
+    
+    if( ab.strlen_b.wp == 0 )   {
+        
+        while( B->wholepart[ x ] )
+            ++x;
+
+        ab.strlen_b.wp = x;
+    }
+    
+    
+    x = 0;
+    
+    while( (z = A->fractpart[ x ]) )    {
+        
+        if( z > B->fractpart[ x ] ) {
+
+            if( B->fractpart[ x ]=='\0' )
+                ab.strlen_b.fp = x;
+        }
+        
+        if( z < B->fractpart[ x ] ) {
+            
+            ab.max = B;
+        }
+        
+        ++x;
+    }
+    
+    ab.strlen_a.fp = x;
+    
+    if( ab.strlen_b.fp==0 ) {
+        
+        while( B->fractpart[ x ] )
+            ++x;
+    
+        ab.strlen_b.fp = x;    
+    }
+    
+    return ab;
+}
+
+
 static void ADD( AP A, AP B, AP C, Flags extra ) {
 
-	char* Awp = A->wholepart;
-	char* Bwp = B->wholepart;
-	char* Cwp;
 
-	uint64_t lenA = lean_strlen(A->wholepart);
+	register char* Awp = A->wholepart;
+	register char* Bwp = B->wholepart;
+	register char* Cwp;
+
+    struct AB_prescan ab = lean_strlen_and_max( A, B );
+
+	uint64_t lenA = ab.strlen_a.wp;
 	int64_t x = lenA-1;
 
-	uint64_t lenB = lean_strlen(B->wholepart);
+	uint64_t lenB = ab.strlen_b.wp;
 	int64_t y = lenB-1;
 
 	uint64_t largest = 0;
+	uint64_t longest = 0;
 
 	if( lenB>lenA )
-
-		largest = lenB;
+		longest = largest = lenB;
+	else if( lenA>lenB )
+		longest = largest = lenA;
 	else
-		largest = lenA;
+	    largest = lenA;
 
 
 	uint64_t lenC = largest+1;
@@ -496,6 +624,7 @@ static void ADD( AP A, AP B, AP C, Flags extra ) {
 	unsigned char r = '0';
 
 
+    //(check at each digit until the condition of A != B is resolved )
 ADDloop:
 
 	// if fractpart, may need implicit trailing zeroes, so need to calc length of fractpart
@@ -509,6 +638,7 @@ ADDloop:
 		b = '0';
 	else
 		b = Bwp[y];
+
 
 	r = a + b + carry;
 	r = r - (48 * 3);
@@ -536,7 +666,37 @@ ADDloop:
 		goto ADDloop;
 	}
 
+    C->sign = '+';
 
+    if( longest != 0 )    {
+        
+        if( largest==lenA ) {
+
+            if( A->sign=='-' )
+                C->sign = '-';
+        }
+        else if( largest==lenB )  { 
+         
+            if( B->sign=='-' )
+                C->sign = '-';
+        }
+            
+    }
+    else    {
+        
+        // Both operand digitstrings were of equal length.
+        if( ab.max==B ) {
+            
+            if( B->sign=='-' )
+                C->sign = '-';
+        }
+        else    {
+            
+            if( A->sign=='-' )
+                C->sign = '-';
+        }
+    }
+    
 	/**
 	END OF ADD BLOCK
 	*/
@@ -666,6 +826,13 @@ SUBloop:
 	*/
 	
 	shift_left_leading_zeroes( Cwp );
+       
+    if( cmpdstr(A->wholepart, B->wholepart) < 0 )   {
+        
+        C->sign = '-';
+    }
+    else
+        C->sign = '+';
 
 	return;
 }
@@ -751,6 +918,8 @@ static void MUL( AP A, AP B, AP C, Flags extra ) {
         --lenC;
     }
 
+    C->sign = (A->sign != B->sign) ? '-' : '+';
+    
 	return;
 }
 
@@ -864,7 +1033,7 @@ Loop:
         
         */
 		
-		
+	    C->sign = (A->sign != B->sign) ? '-' : '+';	
 		return;
 	}
 
@@ -1117,8 +1286,7 @@ static void LOGb( AP A, AP B, AP C, Flags extra )	{
 	The 2nd stage is to additivily accumulate all the n-roots 1/n radix values
 	for the denominator 'n', and produce a decimal LOG(x) value.
 	*/
-
-	AP max_denom = aplib->CopyAP( N, extra );
+AP max_denom = aplib->CopyAP( N, extra );
 	AP rational_numerator = aplib->CopyAP( AP0, extra );
 
 	AP d;
