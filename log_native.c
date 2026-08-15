@@ -13,9 +13,10 @@ round the l.s.d.
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include <time.h>
 
-#include "./log_native.h"
-
+#include "./lean_string.h"
+#include "./native.h"
 
 #ifndef TRUE
 #define TRUE 1
@@ -40,22 +41,101 @@ typedef struct result {
 } result;
 
 
+
+/**
+Optimisation subroutines.
+Not used by default, but available for compressing APNATIVERANGE-string numbers. Bases 1,2,8,10,16.
+*/
+char* pack( char* _ ) {
+	
+	APNATIVERANGE strlen__ = lean_strlen( _ );
+
+	char* P = (char*)calloc( 1, (strlen__>>1) + 2 );
+	char t;
+	
+	APNATIVERANGE i,j;
+	for( i=0,j=0; i<strlen__-1; i+=2, j++ )	{
+		
+		t = _[i] - '0';
+		if( t==0 )
+			t=10;
+		
+		char nd = (_[i+1] - NUMERICAL_DIGITS_ASCII_OFFSET);
+		if( nd==0 )
+			nd=10;
+		
+		t += ( nd << 4 );
+		
+		P[j] = t;		
+	}
+
+	if( i==strlen__-1 )	{
+
+	t = _[i] - NUMERICAL_DIGITS_ASCII_OFFSET;
+	if( t==0 )
+		t=10;
+	
+	P[j++] = t;
+	
+	}
+	P[j] = '\0';
+	return P;
+}
+char* unpack( char* _ ) {
+	/** assumes a packed-digit string of 4 bits/digit. */
+	
+	
+	APNATIVERANGE strlen__ = lean_strlen( _ );
+
+	int BITMASK_LOWER = 15;		// 00001111 (8+4+2+1)
+	int BITMASK_UPPER = 255-15; // 11110000 (128+64+32+16)
+	char t;
+	
+	APNATIVERANGE i, j;
+	char* U = (char*)calloc( 1, (2<<strlen__) + 1 );
+	for( i=0, j=0; i<strlen__; i++ ) {
+		
+		t = _[i] & BITMASK_LOWER;
+		if( t==10 )	t=0;
+		
+		U[j++] = t + NUMERICAL_DIGITS_ASCII_OFFSET;
+		
+		t = (_[i] & BITMASK_UPPER)>>4;
+		if( t==0 )
+			U[j++] = '\0';
+		else if( t==10 )
+			U[j++] = '0';
+		else
+			U[j++] = t + NUMERICAL_DIGITS_ASCII_OFFSET;
+
+	}
+
+	if( U[j-1]!='\0' )
+		U[j] = '\0';
+
+	return U;
+}
+
+
+
+
 int test_log_native_impl( double X ) {
 
-
-    #include <time.h>
-    clock_t begin = clock();
+    SPEEDTESTINIT();
+    
+    SPEEDTESTBEGIN();
     //
     struct result Y = LOGb( X, 10, 0.00001 );
     //
-    clock_t end = clock();
+    SPEEDTESTEND();
+    
     double time_spent_lean = (double)(end - begin) / CLOCKS_PER_SEC;
     
-    begin = clock();
+    SPEEDTESTBEGIN();
     //
     double Z = log10( X );
     //
-    end = clock();
+    SPEEDTESTEND();
     double time_spent_stdlib = (double)(end - begin) / CLOCKS_PER_SEC;
 
 	
@@ -82,6 +162,95 @@ int EQ( double A, double B, double epsilon )	{
 			return TRUE;
 
 	return FALSE;
+}
+
+double quick_cosine( double angle_in_radians ) {
+    
+    int iterations = 20;
+    
+    
+    /*
+    method: Taylor's Approximation for small sine values. Split the input angle in radians
+    into: v = a/N, then use v as the small sine seed for the Taylor Approximation.
+    */
+
+    double v = 0.0;
+    double result = 0.0;
+    double sign = -1.0;
+    
+    
+    int split_size = 0;
+    
+    if( angle_in_radians > 0.15 )    {
+        
+        double _ = angle_in_radians;
+        
+        while( _ > 0.0 )    {
+            
+            _ -= 0.15;
+            ++split_size;
+        }
+        
+        v = (double) (angle_in_radians / split_size);
+    }
+    else 
+        v = (double) angle_in_radians;
+    
+    result = 1.0;
+    
+    int n = 0;
+    double numerator = 0.0;
+    int denominator = 0;
+    while( n<iterations )   {
+        
+        // sine(x) ≈ x − x³/3! + x⁵/5! − x⁷/7!
+
+        numerator = pow( v, (double) (2*n) );
+        denominator = factorial( 2*n );
+        
+        result = result + ( (sign * numerator)/(double)denominator );
+        
+        if( sign==+1.0 )
+            sign = -1.0;
+        else
+            sign = +1.0;
+
+        ++n;
+    }
+    
+    result = result * split_size;
+    
+    return result;
+}
+
+
+
+
+double quickexp( double base, int radix )   {
+    
+    double result = base;
+    
+    while( radix > 1 )  {
+        
+        result *= base;
+        --radix;
+    }    
+    
+    return result;
+}
+
+
+int factorial( int n )  {
+    
+    int R = 1;
+    
+    while( n>=1 )   {
+        
+        R *= n;
+        --n;
+    }
+    
+    return R;
 }
 
 struct result LOGb( double X, int Base, double epsilon )	{
